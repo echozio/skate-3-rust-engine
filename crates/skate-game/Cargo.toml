@@ -19,8 +19,11 @@ path = "src/custom_models_main.rs"
 test = false
 
 [features]
-default = ["dev-dynamic"]
+default = ["dev-dynamic", "steam"]
 dev-dynamic = ["bevy/dynamic_linking"]
+# Steam lobby/relay transport. --no-default-features builds drop it; direct
+# UDP multiplayer remains available.
+steam = []
 
 [dependencies]
 bevy = { workspace = true, features = ["jpeg", "trace", "debug", "bevy_audio", "wav"] }
@@ -29,11 +32,12 @@ skate-data.workspace = true
 half = "=2.7.1"
 serde_json.workspace = true
 serde.workspace = true
-    skate-net = { path = "../skate-net" }
 blake3 = "=1.8.7"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
 skate-mods = { path = "../skate-mods" }
 skate-dynamics = { path = "../skate-dynamics" }
+skate-net = { path = "../skate-net" }
+skate-platform = { path = "../skate-platform" }
 skate-audio = { path = "../skate-audio" }
 gltf = { version = "=1.4.1", default-features = true }
 # SDL3 gamepad input for every platform, built from source and statically linked.
