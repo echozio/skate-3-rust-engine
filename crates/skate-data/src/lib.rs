@@ -23,3 +23,4 @@ pub mod ocean_pca;
 pub mod menu_tables;
 pub mod trigger_volumes;
 pub mod aipath;
+pub mod living_world;
