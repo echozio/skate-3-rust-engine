@@ -162,6 +162,7 @@ User: "There were MANY floating peds during my last play session. Not on geometr
 - [Ped perception, secondary chasers and tazers (2026-10-09)](26g-living-world-ped-interactions.md#ped-perception-secondary-chasers-and-tazers-2026-10-09)
 - [Peds greet each other (2026-10-09)](26g-living-world-ped-interactions.md#peds-greet-each-other-2026-10-09)
 - [Ped conversations: the plugin runner and the conversation object (2026-10-09)](26g-living-world-ped-interactions.md#ped-conversations-the-plugin-runner-and-the-conversation-object-2026-10-09)
+- [Conversation speech, gather timer and abort (2026-10-09)](26g-living-world-ped-interactions.md#conversation-speech-gather-timer-and-abort-2026-10-09)
 ### 26h: Traffic
 
 - [Change: milestone V0, vehicle data](26h-living-world-traffic.md#change-milestone-v0-vehicle-data)
@@ -174,6 +175,7 @@ User: "There were MANY floating peds during my last play session. Not on geometr
 - [Skitching: research and the tow spring (2026-10-09, groundwork)](26h-living-world-traffic.md#skitching-research-and-the-tow-spring-2026-10-09-groundwork)
 - [Cars knock the skater down, and brake when hit (V5 start, 2026-10-09)](26h-living-world-traffic.md#cars-knock-the-skater-down-and-brake-when-hit-v5-start-2026-10-09)
 - [Traffic: obstacles ahead (V4 look-ahead, 2026-10-09)](26h-living-world-traffic.md#traffic-obstacles-ahead-v4-look-ahead-2026-10-09)
+- [Traffic: the horn, and peds running from it (V4, 2026-10-09)](26h-living-world-traffic.md#traffic-the-horn-and-peds-running-from-it-v4-2026-10-09)
 
 ### 26i: Props
 
