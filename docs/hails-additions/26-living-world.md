@@ -182,6 +182,7 @@ User: "There were MANY floating peds during my last play session. Not on geometr
 - [Skitching step 3: the riding skitch query (2026-10-09)](26h-living-world-traffic.md#skitching-step-3-the-riding-skitch-query-2026-10-09)
 - [Skitching step 4b: the hold target and the release impulses (2026-10-09)](26h-living-world-traffic.md#skitching-step-4b-the-hold-target-and-the-release-impulses-2026-10-09)
 - [Skitching step 4c: the hold step and the release (2026-10-09)](26h-living-world-traffic.md#skitching-step-4c-the-hold-step-and-the-release-2026-10-09)
+- [Skitching step 4d: the along-the-bumper hand chain (2026-10-09)](26h-living-world-traffic.md#skitching-step-4d-the-along-the-bumper-hand-chain-2026-10-09)
 
 ### 26i: Props
 
