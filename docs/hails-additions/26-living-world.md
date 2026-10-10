@@ -166,6 +166,7 @@ User: "There were MANY floating peds during my last play session. Not on geometr
 - [Conversation speech, gather timer and abort (2026-10-09)](26g-living-world-ped-interactions.md#conversation-speech-gather-timer-and-abort-2026-10-09)
 - [Peds taunt after a takedown (2026-10-09)](26g-living-world-ped-interactions.md#peds-taunt-after-a-takedown-2026-10-09)
 - [Ped plugins on world props: data, rolls and the offer scan (groundwork, 2026-10-10)](26g-living-world-ped-interactions.md#ped-plugins-on-world-props-data-rolls-and-the-offer-scan-groundwork-2026-10-10)
+- [Ped plugins on world props: motion states and the wiring (2026-10-10)](26g-living-world-ped-interactions.md#ped-plugins-on-world-props-motion-states-and-the-wiring-2026-10-10)
 ### 26h: Traffic
 
 - [Change: milestone V0, vehicle data](26h-living-world-traffic.md#change-milestone-v0-vehicle-data)
