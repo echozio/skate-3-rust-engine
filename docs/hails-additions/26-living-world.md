@@ -178,6 +178,7 @@ User: "There were MANY floating peds during my last play session. Not on geometr
 - [Traffic: the horn, and peds running from it (V4, 2026-10-09)](26h-living-world-traffic.md#traffic-the-horn-and-peds-running-from-it-v4-2026-10-09)
 - [Skitching step 1: car grab splines in the vehicle data (2026-10-09)](26h-living-world-traffic.md#skitching-step-1-car-grab-splines-in-the-vehicle-data-2026-10-09)
 - [Skitching step 4a: the state-104 frame step, and the GRABDATA header fix (2026-10-09)](26h-living-world-traffic.md#skitching-step-4a-the-state-104-frame-step-and-the-grabdata-header-fix-2026-10-09)
+- [Skitching step 2: cars in the grab scene (2026-10-09)](26h-living-world-traffic.md#skitching-step-2-cars-in-the-grab-scene-2026-10-09)
 
 ### 26i: Props
 
