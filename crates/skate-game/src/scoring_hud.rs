@@ -19,6 +19,8 @@ use std::{collections::BTreeMap, path::PathBuf};
 pub(crate) struct ColorTransform {
     multiply: Vec4,
     add: Vec4,
+    /// x = 1: apply the transform in gamma space (hud_render.wgsl; the retail menus).
+    mode: Vec4,
 }
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub(crate) struct HudMaterial {
@@ -571,7 +573,7 @@ fn apply_draws(
         if index == slots.len() {
             let mesh = meshes.add(hud_mesh(draw));
     let Hud { textures, slots, .. } = &mut *hud;
-    render_draws(&mut commands, &mut meshes, &mut materials, slots, &draws, |t| textures.get(t).cloned(), 0.0);
+    render_draws(&mut commands, &mut meshes, &mut materials, slots, &draws, |t| textures.get(t).cloned(), 0.0, false);
 }
 
 /// Draws APT geometry into the HUD's offscreen layer (31), reusing one mesh entity per draw slot. `z_base` stacks
@@ -584,6 +586,7 @@ pub(crate) fn render_draws(
     draws: &[apt_scene::Draw],
     texture_of: impl Fn(&str) -> Option<Handle<Image>>,
     z_base: f32,
+    gamma: bool,
 ) {
     let mut used = 0;
     for draw in draws {
@@ -615,6 +618,7 @@ pub(crate) fn render_draws(
             color: ColorTransform {
                 multiply: draw.multiply.into(),
                 add: draw.add.into(),
+                mode: Vec4::new(f32::from(u8::from(gamma)), 0., 0., 0.),
             },
             atlas: texture,
         };
