@@ -113,3 +113,4 @@ __pycache__/
 mods/world-audio-test/logs/
 # Built by tools/steam-launcher/build.bat
 /tools/steam-launcher/SkateLauncher.exe
+.DS_Store
