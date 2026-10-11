@@ -573,7 +573,7 @@ fn apply_draws(
         if index == slots.len() {
             let mesh = meshes.add(hud_mesh(draw));
     let Hud { textures, slots, .. } = &mut *hud;
-    render_draws(&mut commands, &mut meshes, &mut materials, slots, &draws, |t| textures.get(t).cloned(), 0.0, false);
+    render_draws(&mut commands, &mut meshes, &mut materials, slots, &draws, |t| textures.get(t).cloned(), 0.0, true);
 }
 
 /// Draws APT geometry into the HUD's offscreen layer (31), reusing one mesh entity per draw slot. `z_base` stacks
