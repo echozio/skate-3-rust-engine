@@ -1,6 +1,6 @@
 # Sandboxed dev shell: `nix run -f .`, or `$(nix-build)/bin/skate3-sandbox ARGS`
 # Runs `nix develop` under bubblewrap with only the repo writable, the Nix
-# store read-only, the Nix daemon socket, GPU devices and the display sockets.
+# store read-only, the Nix daemon socket, GPU, display, audio and input.
 let
   locked = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked;
   nixpkgs = fetchTarball {
@@ -42,13 +42,18 @@ pkgs.writeShellApplication {
       --ro-bind-try /etc/hosts /etc/hosts
       --ro-bind-data 3 /etc/passwd
       --ro-bind-data 4 /etc/group
-      # GPU: DRM render nodes, NVIDIA devices, sysfs for driver probing and
-      # the NixOS driver tree the Vulkan loader finds ICDs in.
+      # sysfs and the udev database for GPU probing and gamepad enumeration;
+      # hotplug events arrive over netlink, which the shared network allows.
+      --ro-bind-try /sys /sys
+      --ro-bind-try /run/udev /run/udev
       --dev-bind-try /dev/dri /dev/dri
-      --ro-bind-try /sys/dev/char /sys/dev/char
-      --ro-bind-try /sys/devices /sys/devices
+      --dev-bind-try /dev/input /dev/input
+      --dev-bind-try /dev/snd /dev/snd
+      # NixOS: Vulkan ICDs, and the ALSA config routing alsa-lib to PipeWire.
       --ro-bind-try /run/opengl-driver /run/opengl-driver
       --ro-bind-try /run/opengl-driver-32 /run/opengl-driver-32
+      --ro-bind-try /etc/alsa /etc/alsa
+      --ro-bind-try /etc/asound.conf /etc/asound.conf
       --setenv HOME ${pkgs.lib.escapeShellArg repo}/.local/home
       --setenv USER "$(id -un)"
       --setenv PATH ${path}
@@ -60,8 +65,10 @@ pkgs.writeShellApplication {
       --setenv TERM "''${TERM:-xterm-256color}"
       --setenv LANG C.UTF-8
     )
-    for dev in /dev/nvidia*; do
-      [[ -e $dev ]] && args+=(--dev-bind "$dev" "$dev")
+    shopt -s nullglob
+    # SDL reads controllers through hidraw for its HIDAPI drivers.
+    for dev in /dev/nvidia* /dev/hidraw*; do
+      args+=(--dev-bind "$dev" "$dev")
     done
 
     if [[ -n ''${XDG_RUNTIME_DIR:-} ]]; then
@@ -71,6 +78,10 @@ pkgs.writeShellApplication {
         [[ $socket == /* ]] || socket="$XDG_RUNTIME_DIR/$socket"
         args+=(--ro-bind-try "$socket" "$socket" --setenv WAYLAND_DISPLAY "$WAYLAND_DISPLAY")
       fi
+      args+=(
+        --ro-bind-try "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0"
+        --ro-bind-try "$XDG_RUNTIME_DIR/pulse/native" "$XDG_RUNTIME_DIR/pulse/native"
+      )
     fi
 
     if [[ ''${DISPLAY:-} =~ ^[^:]*:([0-9]+) ]]; then
