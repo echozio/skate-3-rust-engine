@@ -1,29 +1,39 @@
 //! Embedded XDVDFS (XISO) extractor. Replaces the external extract-xiso
-//! binary with the CLI subset the asset pipeline uses: `-x <image> -d <dir>`.
+//! binary with the CLI subset the asset pipeline uses: `-x -d <dir> <image>`.
 //! OffsetWrapper probes RAW/XGD1-3 layouts, so redump-style Xbox 360 images
 //! are accepted the same way extract-xiso accepts them.
 use std::{
+    ffi::OsString,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
 use xdvdfs::blockdev::{BlockDeviceRead, OffsetWrapper};
 
-fn run() -> Result<(), String> {
+const USAGE: &str = "usage: skate-xiso -x -d <output-directory> <image.iso>";
+
+fn parse(args: impl IntoIterator<Item = OsString>) -> Result<(PathBuf, PathBuf), String> {
+    let mut extract = false;
     let mut image = None;
     let mut dest = None;
-    let mut args = std::env::args_os().skip(1);
+    let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         match arg.to_str() {
-            Some("-x") => image = Some(PathBuf::from(args.next().ok_or("missing image after -x")?)),
+            Some("-x") => extract = true,
             Some("-d") => dest = Some(PathBuf::from(args.next().ok_or("missing directory after -d")?)),
-            _ => return Err(format!("unsupported argument: {}", arg.to_string_lossy())),
+            Some(option) if option.starts_with('-') => return Err(format!("unsupported option: {option}")),
+            _ if image.is_none() => image = Some(PathBuf::from(arg)),
+            _ => return Err(format!("unexpected argument: {}", arg.to_string_lossy())),
         }
     }
-    let (image, dest) = match (image, dest) {
-        (Some(image), Some(dest)) => (image, dest),
-        _ => return Err("usage: skate-xiso -x <image.iso> -d <output-directory>".into()),
-    };
+    match (extract, image, dest) {
+        (true, Some(image), Some(dest)) => Ok((image, dest)),
+        _ => Err(USAGE.into()),
+    }
+}
+
+fn run() -> Result<(), String> {
+    let (image, dest) = parse(std::env::args_os().skip(1))?;
     let file = fs::File::open(&image).map_err(|e| format!("could not open image: {e}"))?;
     let mut dev = OffsetWrapper::new(io::BufReader::new(file))
         .map_err(|_| "not an XDVDFS/XISO image".to_string())?;
@@ -97,5 +107,34 @@ fn main() {
     if let Err(error) = run() {
         eprintln!("skate-xiso: {error}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<OsString> {
+        list.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn accepts_extract_xiso_order() {
+        let parsed = parse(args(&["-x", "-d", "out", "game.iso"])).unwrap();
+        assert_eq!(parsed, (PathBuf::from("game.iso"), PathBuf::from("out")));
+    }
+
+    #[test]
+    fn accepts_image_after_extract_flag() {
+        let parsed = parse(args(&["-x", "game.iso", "-d", "out"])).unwrap();
+        assert_eq!(parsed, (PathBuf::from("game.iso"), PathBuf::from("out")));
+    }
+
+    #[test]
+    fn rejects_incomplete_or_extra_arguments() {
+        assert_eq!(parse(args(&["-d", "out", "game.iso"])), Err(USAGE.into()));
+        assert_eq!(parse(args(&["-x", "game.iso"])), Err(USAGE.into()));
+        assert!(parse(args(&["-x", "-d", "out", "a.iso", "b.iso"])).is_err());
+        assert!(parse(args(&["-x", "-q", "-d", "out", "a.iso"])).is_err());
     }
 }
