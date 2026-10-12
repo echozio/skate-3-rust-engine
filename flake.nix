@@ -207,8 +207,10 @@
                 --dev-bind-try /dev/input /dev/input
                 --dev-bind-try /dev/snd /dev/snd
                 # NixOS: Vulkan ICDs, and the ALSA config routing alsa-lib to PipeWire.
+                # The files in /etc/alsa/conf.d are symlinks into /etc/static.
                 --ro-bind-try /run/opengl-driver /run/opengl-driver
                 --ro-bind-try /run/opengl-driver-32 /run/opengl-driver-32
+                --ro-bind-try /etc/static /etc/static
                 --ro-bind-try /etc/alsa /etc/alsa
                 --ro-bind-try /etc/asound.conf /etc/asound.conf
                 --setenv HOME "$repo/.local/home"
