@@ -19,7 +19,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 pub(crate) struct ColorTransform {
     multiply: Vec4,
     add: Vec4,
-    /// x = 1: apply the transform in gamma space (hud_render.wgsl; the retail menus).
+    /// x = 1: apply the transform in gamma space (hud_render.wgsl; the retail menus and the HUD).
     mode: Vec4,
 }
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
@@ -453,12 +453,15 @@ fn render(
     hud: Option<ResMut<Hud>>,
     meshes: ResMut<Assets<Mesh>>,
     materials: ResMut<Assets<HudMaterial>>,
+    fe_hud: Option<Res<crate::fe_backdrop::FeHud>>,
+    overlay: Option<Res<crate::graphics_menu::Menu>>,
+    menus: Option<Res<crate::retail_menus::RetailMenus>>,
 ) {
     let started = std::time::Instant::now();
-    render_draws(commands, hud, meshes, materials);
+    render_hud(commands, hud, meshes, materials, fe_hud, overlay, menus);
     crate::frame_timing::hitch::add_phase(crate::frame_timing::hitch::PHASE_HUD_RENDER, started);
 }
-fn render_draws(
+fn render_hud(
     mut commands: Commands,
     hud: Option<ResMut<Hud>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -523,11 +526,12 @@ fn hud_mesh(draw: &apt_scene::Draw) -> Mesh {
     );
     mesh
 }
-fn hud_material(draw: &apt_scene::Draw, atlas: Handle<Image>) -> HudMaterial {
+fn hud_material(draw: &apt_scene::Draw, atlas: Handle<Image>, gamma: bool) -> HudMaterial {
     HudMaterial {
         color: ColorTransform {
             multiply: draw.multiply.into(),
             add: draw.add.into(),
+            mode: Vec4::new(f32::from(u8::from(gamma)), 0., 0., 0.),
         },
         atlas,
     }
@@ -563,6 +567,7 @@ fn mesh_matches(mesh: &Mesh, draw: &apt_scene::Draw) -> bool {
 fn material_matches(old: &HudMaterial, new: &HudMaterial) -> bool {
     bits(old.color.multiply.to_array(), new.color.multiply.to_array())
         && bits(old.color.add.to_array(), new.color.add.to_array())
+        && bits(old.color.mode.to_array(), new.color.mode.to_array())
         && old.atlas == new.atlas
 }
 /// Write this frame's draws into the retained slots. A slot's mesh, material and visibility are
@@ -578,19 +583,11 @@ fn apply_draws(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<HudMaterial>,
 ) {
-    for (index, draw) in draws.iter().enumerate() {
-        let Some(texture) = textures.get(&draw.texture).cloned() else {
-            continue;
-        };
-        let material = hud_material(draw, texture);
-        if index == slots.len() {
-            let mesh = meshes.add(hud_mesh(draw));
-    let Hud { textures, slots, .. } = &mut *hud;
-    render_draws(&mut commands, &mut meshes, &mut materials, slots, &draws, |t| textures.get(t).cloned(), 0.0, true);
+    apply_draws_with(commands, slots, |t| textures.get(t).cloned(), draws, meshes, materials, 0.0, true);
 }
 
-/// Draws APT geometry into the HUD's offscreen layer (31), reusing one mesh entity per draw slot. `z_base` stacks
-/// another movie set (the retail menus) above the HUD.
+/// Draws APT geometry into the HUD's offscreen layer (31), one retained slot per draw. `z_base` stacks another
+/// movie set (the retail menus) above the HUD; `gamma` applies colour transforms in gamma space.
 pub(crate) fn render_draws(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -601,42 +598,27 @@ pub(crate) fn render_draws(
     z_base: f32,
     gamma: bool,
 ) {
-    let mut used = 0;
-    for draw in draws {
+    apply_draws_with(commands, slots, texture_of, draws, meshes, materials, z_base, gamma);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_draws_with(
+    commands: &mut Commands,
+    slots: &mut Vec<Slot>,
+    texture_of: impl Fn(&str) -> Option<Handle<Image>>,
+    draws: &[apt_scene::Draw],
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<HudMaterial>,
+    z_base: f32,
+    gamma: bool,
+) {
+    for (index, draw) in draws.iter().enumerate() {
         let Some(texture) = texture_of(&draw.texture) else {
             continue;
         };
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-        );
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            draw.vertices
-                .iter()
-                .map(|v| [v.position[0] - 640., 360. - v.position[1], 0.])
-                .collect::<Vec<_>>(),
-        );
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_UV_0,
-            draw.vertices.iter().map(|v| v.uv).collect::<Vec<_>>(),
-        );
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_NORMAL,
-            vec![[0., 0., 1.]; draw.vertices.len()],
-        );
-        let index = used;
-        used += 1;
-        let material = HudMaterial {
-            color: ColorTransform {
-                multiply: draw.multiply.into(),
-                add: draw.add.into(),
-                mode: Vec4::new(f32::from(u8::from(gamma)), 0., 0., 0.),
-            },
-            atlas: texture,
-        };
+        let material = hud_material(draw, texture, gamma);
         if index == slots.len() {
-            let mesh = meshes.add(mesh);
+            let mesh = meshes.add(hud_mesh(draw));
             let material = materials.add(material);
             let entity = commands
                 .spawn((
@@ -661,9 +643,6 @@ pub(crate) fn render_draws(
                 if let Some(old) = meshes.get_mut(&slot.mesh) {
                     *old = hud_mesh(draw);
                 }
-            let slot = &slots[index];
-            if let Some(old) = meshes.get_mut(&slot.mesh) {
-                *old = mesh;
             }
             if !materials
                 .get(&slot.material)
@@ -732,6 +711,7 @@ mod draw_tests {
                 color: ColorTransform {
                     multiply: draw.multiply.into(),
                     add: draw.add.into(),
+                    mode: Vec4::new(1., 0., 0., 0.),
                 },
                 atlas: texture,
             };
@@ -1082,7 +1062,5 @@ mod draw_tests {
         line("writer old", &cost_old);
         line("writer new", &cost_new);
         assert!(churn_new[0] + churn_new[1] < churn_old[0] + churn_old[1]);
-    for slot in &slots[used..] {
-        commands.entity(slot.entity).insert(Visibility::Hidden);
     }
 }

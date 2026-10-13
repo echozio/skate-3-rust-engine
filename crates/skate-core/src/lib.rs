@@ -7,8 +7,8 @@
 pub mod air;
 pub mod animation;
 pub mod camera;
-pub mod colour_matrix;
 pub mod camera_track;
+pub mod colour_matrix;
 pub mod graph;
 pub mod input;
 pub mod math;
