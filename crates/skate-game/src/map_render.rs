@@ -91,12 +91,23 @@ impl<A: Asset> OwnedAssets for StagedAssets<A> {
 #[derive(Default)]
 pub(crate) struct SceneCommands {
     queue: CommandQueue,
+    /// Replaces `MapEntity` for scenes the map change must not retire (the Trick Guide set).
+    tag: Option<std::sync::Arc<dyn Fn(&mut EntityWorldMut) + Send + Sync>>,
 }
 
 impl SceneCommands {
+    pub(crate) fn tagged(tag: impl Fn(&mut EntityWorldMut) + Send + Sync + 'static) -> Self {
+        Self { queue: CommandQueue::default(), tag: Some(std::sync::Arc::new(tag)) }
+    }
     pub(crate) fn spawn<B: Bundle>(&mut self, bundle: B) {
+        let tag = self.tag.clone();
         self.queue.push(move |world: &mut World| {
-            world.spawn((bundle, MapEntity));
+            match tag {
+                Some(tag) => tag(&mut world.spawn(bundle)),
+                None => {
+                    world.spawn((bundle, MapEntity));
+                }
+            }
         });
     }
 
@@ -117,6 +128,9 @@ impl SceneCommands {
                 world.spawn((child, ChildOf(parent)));
             }
         });
+    }
+    pub(crate) fn apply(&mut self, world: &mut World) {
+        std::mem::take(&mut self.queue).apply(world);
     }
 }
 
