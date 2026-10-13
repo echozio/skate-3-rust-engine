@@ -1570,6 +1570,7 @@ mod tests {
         // A wheel sphere resting on the translated instance reports a contact.
         let (query, retention) = crate::physics::ground::query_settings();
         let volumes = [skate_core::physics::board_world::BoardWorldVolume {
+            collision_group: 4,
             body: skate_core::physics::board_step::CollisionBody::Board(
                 skate_core::physics::board::BodyId::Deck,
             ),
@@ -1579,7 +1580,7 @@ mod tests {
                     radius: 0.1,
                 },
             ),
-            linear_velocity: Vector3::ZERO,
+            motion: skate_core::physics::board_world::VolumeMotion { linear_velocity: Vector3::ZERO, ..Default::default() },
             material: material(),
         }];
         let contacts = world.query_primitives(&volumes, query, retention);

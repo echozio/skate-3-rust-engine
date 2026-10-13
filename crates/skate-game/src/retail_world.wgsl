@@ -371,7 +371,6 @@ fn fragment(i: VertexOutput) -> @location(0) vec4<f32> {
     if p.fog_ramp.z != 1.0 { f = pow(max(f,1e-6),p.fog_ramp.z); }
     var fog_a = 1.0+p.fog_color.a*f;
     if fam <= 8u || fam == 13u || fam == 16u { fog_a *= p.surface.w; }
-    if fam <= 8u || fam == 13u { fog_a *= p.surface.w; }
     // dynamicobject_defaultPS 98, 101: m_params[0].y scales the fogged light.
     if fam == 15u { fog_a *= p.water[0].y; }
     var xe = max((lin*fog_a+p.fog_color.rgb*f)*p.mode.w,vec3<f32>(0.0));

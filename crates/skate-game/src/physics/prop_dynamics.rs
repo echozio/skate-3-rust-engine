@@ -2133,7 +2133,7 @@ impl PropDynamics {
         let mut any_closing = false;
         let mut any_overlap = false;
         for pair in &manifold.points[..manifold.count] {
-            let closing = dot(sub(volume.linear_velocity, self.bodies[index].velocity_at(pair.b)), push);
+            let closing = dot(sub(volume.motion.linear_velocity, self.bodies[index].velocity_at(pair.b)), push);
             let closing = if closing > hit_floor { closing } else { 0.0 };
             let penetration = dot(sub(pair.a, pair.b), manifold.normal);
             any_closing |= closing > 0.0;
@@ -2941,12 +2941,13 @@ mod tests {
         let start_x = dynamics.bodies[0].rates.position.x;
         assert!(dynamics.bodies[0].asleep);
         let volumes = [BoardWorldVolume {
+            collision_group: 4,
             body: CollisionBody::Board(BodyId::Deck),
             primitive: ContactPrimitive::Sphere(Sphere {
                 center: Vector3::new(-0.55, REST_Y, 0.),
                 radius: 0.2,
             }),
-            linear_velocity: Vector3::new(2., 0., 0.),
+            motion: skate_core::physics::board_world::VolumeMotion { linear_velocity: Vector3::new(2., 0., 0.), ..Default::default() },
             material: material(),
         }];
         for _ in 0..30 {
@@ -2990,6 +2991,7 @@ mod tests {
     /// render mesh is open but the render-AABB contact box is solid).
     fn parked_deck() -> [BoardWorldVolume; 1] {
         [BoardWorldVolume {
+            collision_group: 4,
             body: CollisionBody::Board(BodyId::Deck),
             primitive: ContactPrimitive::Capsule {
                 center: Vector3::new(0.1, super::super::ground::HEIGHT + 0.1, 0.05),
@@ -2997,7 +2999,7 @@ mod tests {
                 half_length: 0.3,
                 radius: 0.06,
             },
-            linear_velocity: Vector3::ZERO,
+            motion: skate_core::physics::board_world::VolumeMotion { linear_velocity: Vector3::ZERO, ..Default::default() },
             material: material(),
         }]
     }
@@ -3081,7 +3083,7 @@ mod tests {
             center: Vector3::new(0., BENCH_REST_Y, -0.35 - 0.15),
             radius: 0.2,
         });
-        hit[0].linear_velocity = Vector3::new(0., 0., 4.);
+        hit[0].motion.linear_velocity = Vector3::new(0., 0., 4.);
         for _ in 0..20 {
             dynamics.step(&world, &mut layer, &hit);
         }
@@ -3100,12 +3102,13 @@ mod tests {
         for tick in 0..60 {
             let x = dynamics.bodies[0].rates.position.x - 0.55 - 0.05 + tick as f32 * 0.0;
             let volumes = [BoardWorldVolume {
+                collision_group: 4,
                 body: CollisionBody::Board(BodyId::Deck),
                 primitive: ContactPrimitive::Sphere(Sphere {
                     center: Vector3::new(x, REST_Y, 0.),
                     radius: 0.2,
                 }),
-                linear_velocity: Vector3::new(10., 0., 0.),
+                motion: skate_core::physics::board_world::VolumeMotion { linear_velocity: Vector3::new(10., 0., 0.), ..Default::default() },
                 material: material(),
             }];
             dynamics.step(&world, &mut layer, &volumes);
@@ -4117,9 +4120,10 @@ mod tests {
         let (world, mut layer, mut dynamics) = fixture([0., REST_Y, 0.]);
         let far = crate::living_world::npc_skaters::prop_volumes(NPC, &npc_sample(-20.0, 5.0));
         let local = [BoardWorldVolume {
+            collision_group: 4,
             body: CollisionBody::Board(BodyId::Deck),
             primitive: ContactPrimitive::Sphere(Sphere { center: Vector3::new(-0.55, REST_Y, 0.), radius: 0.2 }),
-            linear_velocity: Vector3::new(2., 0., 0.),
+            motion: skate_core::physics::board_world::VolumeMotion { linear_velocity: Vector3::new(2., 0., 0.), ..Default::default() },
             material: material(),
         }];
         dynamics.step_with_actors(&world, &mut layer, &[], &far);

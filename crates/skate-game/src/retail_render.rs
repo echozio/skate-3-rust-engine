@@ -528,14 +528,14 @@ impl Definition {
             "water.default" | "water.alpha" | "water.skatepark"
         ) {
             33
-        } else if stored_family == 0 && shader == "environment.transparent" {
-            // Map packages exported before the converter knew this family
-            // stored 0 and drew as opaque family 1; classify them on load.
-            TRANSPARENT_ENVIRONMENT_FAMILY
         } else if stored_family == 0 && shader.starts_with("dynamicobject.") {
             // Prop packages exported before the converter knew this family
             // stored 0 with complete bindings; classify them on load.
             DYNAMIC_OBJECT_FAMILY
+        } else if stored_family == 0 && shader == "environment.transparent" {
+            // Map packages exported before the converter knew this family
+            // stored 0 and drew as opaque family 1; classify them on load.
+            TRANSPARENT_ENVIRONMENT_FAMILY
         } else {
             stored_family
         };
@@ -1867,59 +1867,6 @@ mod tests {
         }
     }
 
-    /// A retail definition record with the shader name, stored family and
-    /// diffuse / lightmap / specular bindings, no parameters.
-    fn transparent_definition(shader: &str, family: u32) -> Vec<u8> {
-        fn text(out: &mut Vec<u8>, value: &str) {
-            out.extend_from_slice(&(value.len() as u32).to_le_bytes());
-            out.extend_from_slice(value.as_bytes());
-        }
-        let mut out = vec![0u8; 16];
-        text(&mut out, shader);
-        for value in [family, 2, 3] {
-            out.extend_from_slice(&value.to_le_bytes());
-        }
-        for (i, role) in ["diffuse", "lightmap", "specular"].into_iter().enumerate() {
-            text(&mut out, role);
-            for value in [i as u32 + 1, 0, 0, 0] {
-                out.extend_from_slice(&value.to_le_bytes());
-            }
-        }
-        out.extend_from_slice(&0u32.to_le_bytes());
-        text(&mut out, "");
-        out
-    }
-
-    #[test]
-    fn transparent_environment_takes_its_own_family() {
-        // Packages exported before the converter knew the family stored 0 and
-        // drew chain-link fences as opaque family 1.
-        for stored in [0, TRANSPARENT_ENVIRONMENT_FAMILY] {
-            let bytes = transparent_definition("environment.transparent", stored);
-            let definition = Definition::parse(&bytes).expect("parses");
-            assert_eq!(definition.family, TRANSPARENT_ENVIRONMENT_FAMILY, "stored {stored}");
-            assert!(definition.supported(&MaterialTuning::default()));
-        }
-        // Other shaders keep their stored family.
-        let reflective = Definition::parse(&transparent_definition("environment.reflective_trans", 13)).unwrap();
-        assert_eq!(reflective.family, 13);
-        let unknown = Definition::parse(&transparent_definition("incandescent.transparent", 0)).unwrap();
-        assert_eq!(unknown.family, 0);
-    }
-
-    #[test]
-    fn transparent_environment_shader_matches_retail() {
-        let src = include_str!("retail_world.wgsl");
-        // transparentenvironment_defaultPS 39, 43, 53: alpha-scaled light, alpha^2 out.
-        assert!(src.contains("if fam == 13u || fam == 16u { lin = lml*d*a.a; }"));
-        assert!(src.contains("if fam == 13u || fam == 16u { alpha *= alpha; }"));
-        assert!(src.contains("if fam >= 7u { alpha = a.a; }"));
-        // Shadowed lightmap and the m_params multiplier like the other world families.
-        assert!(src.contains("(fam<=8u || fam==13u || fam==16u)"));
-        assert!(src.contains("if fam <= 8u || fam == 13u || fam == 16u { fog_a *= p.surface.w; }"));
-        // No normal map read: the retail program fetches none.
-        let normal_read = src.lines().find(|l| l.contains("sample_normal_map(slot,i.uv,g)")).unwrap();
-        assert!(!normal_read.contains("16u"), "{normal_read}");
     /// The retail world receiver expression (every world `*_defaultPS`):
     /// `min(lightmap^2, csm_visibility + floor)`.
     fn receive(lightmap_sq: Vec3, visibility: f32, floor: Vec3) -> Vec3 {
@@ -2119,5 +2066,60 @@ mod tests {
         let src = include_str!("retail_world.wgsl");
         assert_eq!(src.matches("+frame_state.shadow.rgb").count(), 2, "lightmapped and water receivers");
         assert!(!src.contains("0.09,0.13,0.05"), "no per-family hard-coded floor");
+    }
+
+    /// A retail definition record with the shader name, stored family and
+    /// diffuse / lightmap / specular bindings, no parameters.
+    fn transparent_definition(shader: &str, family: u32) -> Vec<u8> {
+        fn text(out: &mut Vec<u8>, value: &str) {
+            out.extend_from_slice(&(value.len() as u32).to_le_bytes());
+            out.extend_from_slice(value.as_bytes());
+        }
+        let mut out = vec![0u8; 16];
+        text(&mut out, shader);
+        for value in [family, 2, 3] {
+            out.extend_from_slice(&value.to_le_bytes());
+        }
+        for (i, role) in ["diffuse", "lightmap", "specular"].into_iter().enumerate() {
+            text(&mut out, role);
+            for value in [i as u32 + 1, 0, 0, 0] {
+                out.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        out.extend_from_slice(&0u32.to_le_bytes());
+        text(&mut out, "");
+        out
+    }
+
+    #[test]
+    fn transparent_environment_takes_its_own_family() {
+        // Packages exported before the converter knew the family stored 0 and
+        // drew chain-link fences as opaque family 1.
+        for stored in [0, TRANSPARENT_ENVIRONMENT_FAMILY] {
+            let bytes = transparent_definition("environment.transparent", stored);
+            let definition = Definition::parse(&bytes).expect("parses");
+            assert_eq!(definition.family, TRANSPARENT_ENVIRONMENT_FAMILY, "stored {stored}");
+            assert!(definition.supported(&MaterialTuning::default()));
+        }
+        // Other shaders keep their stored family.
+        let reflective = Definition::parse(&transparent_definition("environment.reflective_trans", 13)).unwrap();
+        assert_eq!(reflective.family, 13);
+        let unknown = Definition::parse(&transparent_definition("incandescent.transparent", 0)).unwrap();
+        assert_eq!(unknown.family, 0);
+    }
+
+    #[test]
+    fn transparent_environment_shader_matches_retail() {
+        let src = include_str!("retail_world.wgsl");
+        // transparentenvironment_defaultPS 39, 43, 53: alpha-scaled light, alpha^2 out.
+        assert!(src.contains("if fam == 13u || fam == 16u { lin = lml*d*a.a; }"));
+        assert!(src.contains("if fam == 13u || fam == 16u { alpha *= alpha; }"));
+        assert!(src.contains("if fam >= 7u { alpha = a.a; }"));
+        // Shadowed lightmap and the m_params multiplier like the other world families.
+        assert!(src.contains("(fam<=8u || fam==13u || fam==16u)"));
+        assert!(src.contains("if fam <= 8u || fam == 13u || fam == 16u { fog_a *= p.surface.w; }"));
+        // No normal map read: the retail program fetches none.
+        let normal_read = src.lines().find(|l| l.contains("sample_normal_map(slot,i.uv,g)")).unwrap();
+        assert!(!normal_read.contains("16u"), "{normal_read}");
     }
 }

@@ -1323,9 +1323,9 @@ impl Vm {
             capabilities.set("audio_events", 3)?;
             // Tuning writes at run time (`sdk.audio.set_tuning`: player / world / bus / reverb domains).
             capabilities.set("audio_tuning", 1)?;
+            capabilities.set("world_tuning", 1)?;
             // Retail menus (sdk.menus): edit the retail menu structure, handle any entry.
             capabilities.set("retail_menus", 1)?;
-            capabilities.set("world_tuning", 1)?;
             sdk.set("_native_capabilities", capabilities)?;
             sdk.set("mod_id", manifest.id.clone())?;
             sdk.set(

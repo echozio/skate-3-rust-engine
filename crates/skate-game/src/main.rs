@@ -62,9 +62,8 @@ mod water_splash;
 mod game_audio;
 pub(crate) mod world_audio;
 pub(crate) mod ui_audio;
-mod trigger_volumes;
-mod water_bodies;
 mod living_world;
+mod trigger_volumes;
 mod trace_all;
 
 fn main() -> bevy::app::AppExit {

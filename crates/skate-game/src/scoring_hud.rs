@@ -884,7 +884,7 @@ mod draw_tests {
         let mut paths: Vec<String> = shapes
             .values()
             .flatten()
-            .map(|s| s.texture.rgba.clone())
+            .filter_map(|s| s.texture.as_ref().map(|t| t.rgba.clone()))
             .collect();
         paths.extend(
             hud.bindings
