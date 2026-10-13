@@ -13,6 +13,13 @@ mod apt_text;
 mod apt_vm;
 #[path = "../../skate-game/src/hud_runtime.rs"]
 mod hud_runtime;
+// The game's prompt_glyphs needs SDL's controller types, which skate-data
+// does not link; without pad prompts, CustomButton placeholders draw nothing.
+mod prompt_glyphs {
+    pub(crate) fn known(_retail: &str) -> bool {
+        false
+    }
+}
 #[path = "../../skate-game/src/scoring_runtime.rs"]
 mod scoring_runtime;
 use skate_core::{
