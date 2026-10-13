@@ -91,23 +91,12 @@ impl<A: Asset> OwnedAssets for StagedAssets<A> {
 #[derive(Default)]
 pub(crate) struct SceneCommands {
     queue: CommandQueue,
-    /// Replaces `MapEntity` for scenes the map change must not retire (the Trick Guide set).
-    tag: Option<std::sync::Arc<dyn Fn(&mut EntityWorldMut) + Send + Sync>>,
 }
 
 impl SceneCommands {
-    pub(crate) fn tagged(tag: impl Fn(&mut EntityWorldMut) + Send + Sync + 'static) -> Self {
-        Self { queue: CommandQueue::default(), tag: Some(std::sync::Arc::new(tag)) }
-    }
     pub(crate) fn spawn<B: Bundle>(&mut self, bundle: B) {
-        let tag = self.tag.clone();
         self.queue.push(move |world: &mut World| {
-            match tag {
-                Some(tag) => tag(&mut world.spawn(bundle)),
-                None => {
-                    world.spawn((bundle, MapEntity));
-                }
-            }
+            world.spawn((bundle, MapEntity));
         });
     }
 
@@ -128,9 +117,6 @@ impl SceneCommands {
                 world.spawn((child, ChildOf(parent)));
             }
         });
-    }
-    pub(crate) fn apply(&mut self, world: &mut World) {
-        std::mem::take(&mut self.queue).apply(world);
     }
 }
 
@@ -346,5 +332,25 @@ pub(crate) fn position_celestial_bodies(
         let direction = Vec3::new(phase.cos(), phase.sin(), 0.25).normalize();
         transform.translation = direction * 400.0;
         *visibility = if direction.y > -0.05 { Visibility::Inherited } else { Visibility::Hidden };
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scenes outside the map (the Trick Guide demo set, trick_guide_scene.rs)
+// ---------------------------------------------------------------------------
+
+impl SceneCommands {
+    /// Apply the queued spawns now. Every entity gets `MapEntity`; the caller re-tags what it spawned.
+    pub(crate) fn apply_now(&mut self, world: &mut World) {
+        std::mem::take(&mut self.queue).apply(world);
+    }
+}
+
+impl<A: Asset> StagedAssets<A> {
+    pub(crate) fn staged(world: &World) -> Self {
+        Self::new(world)
+    }
+    pub(crate) fn publish_now(&mut self, world: &mut World) {
+        self.publish(world);
     }
 }
