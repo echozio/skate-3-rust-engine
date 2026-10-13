@@ -88,9 +88,24 @@ the prepared asset directory: `SKATE3_ASSETS` takes precedence, then checkout
 These commands also work from checkout subdirectories, or without entering an
 interactive shell: `nix develop -c skate-run`.
 
-On Linux, `nix run` opens the same shell inside a bubblewrap sandbox where only
-the checkout is writable; arguments are passed to `nix develop`, for example
-`nix run . -- -c skate-run`.
+On Linux, each `skate-*` command runs inside a bubblewrap sandbox where only the
+checkout is writable (its `.local/home` is `$HOME`), the Nix store is read-only
+and the Nix daemon is unreachable. The sandbox sees the GPU, display, audio,
+gamepads and the network, and `skate-setup` additionally sees the selected ISO
+or game folder, read-only. `skate-shell` opens a shell in the same sandbox.
+
+To play without the dev shell, the default package (`nix run`) builds the
+game in release mode and runs it in the same sandbox with only
+`$XDG_DATA_HOME/skate3` writable (override with `SKATE3_HOME`; mods go in its
+`mods/`):
+
+```sh
+nix run . -- setup path/to/Skate3.iso  # Once; also accepts default.xex
+nix run .                              # Play
+```
+
+Setup runs without network access. Arguments after the first `--` go to the
+game, for example `nix run . -- --test-world`.
 
 When switching from a different compiler, an existing SDL CMake cache may reject
 the change. Run `cargo clean -p sdl3-sys` once inside the shell, then `skate-build`.
