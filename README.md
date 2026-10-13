@@ -94,18 +94,24 @@ and the Nix daemon is unreachable. The sandbox sees the GPU, display, audio,
 gamepads and the network, and `skate-setup` additionally sees the selected ISO
 or game folder, read-only. `skate-shell` opens a shell in the same sandbox.
 
-To play without the dev shell, the default package (`nix run`) builds the
-game in release mode and runs it in the same sandbox with only
-`$XDG_DATA_HOME/skate3` writable (override with `SKATE3_HOME`; mods go in its
-`mods/`):
+To play without the dev shell, the default package (`nix run`) builds the game
+in release mode, converts your ISO into assets in the Nix store, and runs the
+game in the same sandbox. Add the ISO to the store once; it must be named
+`skate3.iso`:
 
 ```sh
-nix run . -- setup path/to/Skate3.iso  # Once; also accepts default.xex
-nix run .                              # Play
+nix-prefetch-url --type sha256 file://$PWD/skate3.iso
+nix run .                         # Play
+nix run . -- --test-world         # Arguments go to the game
 ```
 
-Setup runs without network access. Arguments after the first `--` go to the
-game, for example `nix run . -- --test-world`.
+The flake pins one dump of the disc. For another dump, build
+`skate3.override { iso = requireFile { ...; sha256 = "<hash>"; }; }` with the
+hash `nix-prefetch-url` prints. The conversion runs again whenever the engine
+or `tools/` change; keep the ISO from being garbage collected with
+`nix build .#iso --out-link .local/skate3.iso`. Settings, mods and logs live
+in `$XDG_DATA_HOME/skate3` (override with `SKATE3_HOME`), the only path the
+game can write.
 
 When switching from a different compiler, an existing SDL CMake cache may reject
 the change. Run `cargo clean -p sdl3-sys` once inside the shell, then `skate-build`.

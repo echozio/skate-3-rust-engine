@@ -15,7 +15,18 @@
       ];
       linuxSystems = builtins.filter (lib.hasSuffix "-linux") systems;
       forAllSystems = f: lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
-      forLinuxSystems = f: lib.genAttrs linuxSystems (system: f nixpkgs.legacyPackages.${system});
+      # requireFile marks the user's own disc image unfree; allow only that.
+      forLinuxSystems =
+        f:
+        lib.genAttrs linuxSystems (
+          system:
+          f (
+            import nixpkgs {
+              inherit system;
+              config.allowUnfreePredicate = pkg: lib.getName pkg == "skate3.iso";
+            }
+          )
+        );
 
       # Libraries the game links (ALSA, udev) or dlopens at runtime (winit, wgpu
       # and SDL: Vulkan, Wayland/X11, xkbcommon).
@@ -388,66 +399,83 @@
             }/tools $out/share/skate3/tools
           '';
 
-          # Game data lives in $SKATE3_HOME (default: $XDG_DATA_HOME/skate3),
-          # the only path the sandbox can write.
-          skate3 = pkgs.writeShellApplication {
-            name = "skate3";
-            runtimeInputs = [
-              (mkSandbox pkgs)
-              pkgs.coreutils
-              pkgs.jq
-            ];
-            text = ''
-              state="''${SKATE3_HOME:-''${XDG_DATA_HOME:-$HOME/.local/share}/skate3}"
-              mkdir -p "$state/data" "$state/mods"
-              state="$(realpath "$state")"
-              marker="$state/data/installation.json"
-              args=(
-                --home "$state/home"
-                --bind "$state" "$state"
-                --chdir "$state"
-                --setenv SKATE3_MODS "$state/mods"
-              )
+          # Setup's conversion of a retail disc: assets, maps and the initial
+          # settings. Nothing in the output may refer back to the disc.
+          mkAssets =
+            iso:
+            pkgs.runCommand "skate3-assets"
+              {
+                nativeBuildInputs = [
+                  (setupPython pkgs (_: [ ]))
+                  pkgs.vgmstream
+                  pkgs.jq
+                ];
+                SKATE_XISO = "${engine}/bin/skate-xiso";
+                PYTHONDONTWRITEBYTECODE = 1;
+                disallowedReferences = [ iso ];
+              }
+              ''
+                export HOME="$TMPDIR"
+                python ${setupTools}/share/skate3/tools/setup.py --base data \
+                  --game-exe ${lib.getExe engine} --source ${iso}
+                mkdir "$out"
+                mv "data/$(jq -r .directory data/installation.json)"/* "$out"
+              '';
 
-              if [[ ''${1:-} == setup ]]; then
-                if [[ $# -ne 2 ]]; then
-                  echo "usage: skate3 setup <Skate 3 Xbox 360 ISO | default.xex>" >&2
-                  exit 64
-                fi
-                source="$(realpath -e "$2")"
-                case $source in
-                  *.[xX][eE][xX]) args+=(--ro-bind "''${source%/*}" "''${source%/*}") ;;
-                  *) args+=(--ro-bind "$source" "$source") ;;
-                esac
-                refresh=()
-                [[ -f $marker ]] && refresh=(--refresh)
-                exec skate-sandbox "''${args[@]}" \
-                  --setenv PATH ${
-                    lib.makeBinPath [
-                      (setupPython pkgs (_: [ ]))
-                      pkgs.vgmstream
-                      pkgs.coreutils
-                    ]
-                  } \
-                  --setenv SKATE_XISO ${engine}/bin/skate-xiso \
-                  --setenv PYTHONDONTWRITEBYTECODE 1 \
-                  -- python ${setupTools}/share/skate3/tools/setup.py \
-                  --base "$state/data" --game-exe ${lib.getExe engine} \
-                  --source "$source" "''${refresh[@]}"
-              fi
+          # The game root is assembled inside the sandbox: the store assets
+          # read-only, and settings, mods and logs from $SKATE3_HOME (default:
+          # $XDG_DATA_HOME/skate3), the only path the game can write.
+          mkSkate3 = lib.makeOverridable (
+            { iso }:
+            let
+              assets = mkAssets iso;
+            in
+            pkgs.writeShellApplication {
+              name = "skate3";
+              runtimeInputs = [
+                (mkSandbox pkgs)
+                pkgs.coreutils
+              ];
+              passthru = { inherit assets iso; };
+              text = ''
+                state="''${SKATE3_HOME:-''${XDG_DATA_HOME:-$HOME/.local/share}/skate3}"
+                mkdir -p "$state"/{settings,mods,logs,home}
+                for file in ${assets}/settings/*; do
+                  [[ -e $state/settings/''${file##*/} ]] || install -m 644 "$file" "$state/settings/"
+                done
+                exec skate-sandbox --home "$state/home" --share-net \
+                  --ro-bind ${assets}/assets /skate3/assets \
+                  --ro-bind ${assets}/maps /skate3/maps \
+                  --ro-bind ${assets}/maps.json /skate3/maps.json \
+                  --bind "$state/settings" /skate3/settings \
+                  --bind "$state/mods" /skate3/mods \
+                  --bind "$state/logs" /skate3/logs \
+                  --chdir /skate3 \
+                  --setenv SKATE3_MODS /skate3/mods \
+                  -- ${lib.getExe engine} --assets /skate3/assets "$@"
+              '';
+            }
+          );
 
-              if [[ ! -f $marker ]]; then
-                echo "skate3: no game data in $state yet. Set it up once from your disc:" >&2
-                echo "  skate3 setup /path/to/Skate3.iso   (or an extracted default.xex)" >&2
-                exit 1
-              fi
-              assets="$state/data/$(jq -r .directory "$marker")/assets"
-              exec skate-sandbox "''${args[@]}" --share-net -- ${lib.getExe engine} --assets "$assets" "$@"
-            '';
+          skate3 = mkSkate3 {
+            iso = pkgs.requireFile {
+              name = "skate3.iso";
+              sha256 = "28d91643cb205766c4b93a158821d7b00c897955e85b4378b81cb422169908af";
+              message = ''
+                The game assets are converted from your own Skate 3 Xbox 360 ISO.
+                Add it to the Nix store once (the file must be named skate3.iso):
+
+                  nix-prefetch-url --type sha256 file:///path/to/skate3.iso
+
+                A different dump of the disc has a different hash; build with
+                `skate3.override { iso = requireFile { ...; sha256 = "<hash>"; }; }`.
+              '';
+            };
           };
         in
         {
           inherit engine skate3;
+          inherit (skate3) assets iso;
           default = skate3;
         }
       );
