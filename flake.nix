@@ -100,13 +100,9 @@
               --dev-bind-try /dev/dri /dev/dri
               --dev-bind-try /dev/input /dev/input
               --dev-bind-try /dev/snd /dev/snd
-              # NixOS: Vulkan ICDs, and the ALSA config routing alsa-lib to PipeWire.
-              # The files in /etc/alsa/conf.d are symlinks into /etc/static.
+              # NixOS: Vulkan ICDs.
               --ro-bind-try /run/opengl-driver /run/opengl-driver
               --ro-bind-try /run/opengl-driver-32 /run/opengl-driver-32
-              --ro-bind-try /etc/static /etc/static
-              --ro-bind-try /etc/alsa /etc/alsa
-              --ro-bind-try /etc/asound.conf /etc/asound.conf
               --bind "$home" "$home"
               --setenv HOME "$home"
               --setenv USER "$(id -un)"
@@ -126,6 +122,66 @@
             for dev in /dev/nvidia* /dev/hidraw*; do
               args+=(--dev-bind "$dev" "$dev")
             done
+
+            # Other distros have no /run/opengl-driver, so assemble one. Mesa's
+            # Vulkan drivers come from nixpkgs. NVIDIA's must match the host's
+            # kernel module, so those are the host's libraries, which name each
+            # other and their X11 and libdrm dependencies without an rpath.
+            library_path=""
+            driver=/run/opengl-driver
+            if [[ ! -e $driver ]]; then
+              for icd in ${pkgs.mesa}/share/vulkan/icd.d/*.json; do
+                args+=(--ro-bind "$icd" "$driver/share/vulkan/icd.d/''${icd##*/}")
+              done
+              for dir in /usr/lib/${pkgs.stdenv.hostPlatform.parsed.cpu.name}-linux-gnu /usr/lib64 /usr/lib; do
+                [[ -e $dir/libGLX_nvidia.so.0 ]] || continue
+                # Every library of that driver version, under its soname links
+                # too: device creation fails without libcuda, for one. Then the
+                # helpers NVIDIA versions separately.
+                version="$(realpath "$dir/libGLX_nvidia.so.0")"
+                version="''${version##*.so.}"
+                declare -A bound=()
+                for lib in "$dir"/*.so."$version" "$dir"/libnvidia*.so.*; do
+                  target="$(realpath "$lib")"
+                  for name in "''${lib%"$version"}"*; do
+                    name="''${name##*/}"
+                    [[ -z ''${bound[$name]:-} ]] || continue
+                    bound[$name]=1
+                    args+=(--ro-bind "$target" "$driver/lib/$name")
+                  done
+                done
+                for icd in /etc/vulkan/icd.d/nvidia_icd*.json /usr/share/vulkan/icd.d/nvidia_icd*.json; do
+                  args+=(--ro-bind "$icd" "$driver/share/vulkan/icd.d/''${icd##*/}")
+                done
+                library_path="$driver/lib:${
+                  lib.makeLibraryPath [
+                    pkgs.libx11
+                    pkgs.libxext
+                    pkgs.libxcb
+                    pkgs.libdrm
+                  ]
+                }"
+                break
+              done
+            fi
+
+            # NixOS routes alsa-lib to PipeWire in /etc/alsa, whose conf.d links
+            # into /etc/static. Elsewhere /etc/alsa links to host files, and
+            # alsa-lib drops its whole configuration over one dangling link, so
+            # PipeWire's own ALSA config stands in. It names the plugin without
+            # a path, and nixpkgs' alsa-lib has no plugin directory of its own.
+            if [[ -e /etc/NIXOS ]]; then
+              args+=(
+                --ro-bind-try /etc/static /etc/static
+                --ro-bind-try /etc/alsa /etc/alsa
+                --ro-bind-try /etc/asound.conf /etc/asound.conf
+              )
+            elif [[ -S ''${XDG_RUNTIME_DIR:-}/pipewire-0 ]]; then
+              for conf in ${pkgs.pipewire}/share/alsa/alsa.conf.d/*.conf; do
+                args+=(--ro-bind "$conf" "/etc/alsa/conf.d/''${conf##*/}")
+              done
+              args+=(--setenv ALSA_PLUGIN_DIR ${pkgs.pipewire}/lib/alsa-lib)
+            fi
 
             if [[ -n ''${XDG_RUNTIME_DIR:-} ]]; then
               args+=(--tmpfs "$XDG_RUNTIME_DIR" --setenv XDG_RUNTIME_DIR "$XDG_RUNTIME_DIR")
@@ -151,10 +207,18 @@
               fi
             fi
 
+            # The driver libraries go ahead of the caller's search path rather
+            # than being replaced by it.
             while [[ $# -gt 0 && $1 != -- ]]; do
+              if [[ $1 == --setenv && ''${2:-} == LD_LIBRARY_PATH && $# -ge 3 ]]; then
+                library_path="''${library_path:+$library_path:}$3"
+                shift 3
+                continue
+              fi
               args+=("$1")
               shift
             done
+            [[ -z $library_path ]] || args+=(--setenv LD_LIBRARY_PATH "$library_path")
             if [[ $# -lt 2 ]]; then
               echo "skate-sandbox: missing -- COMMAND" >&2
               exit 64
