@@ -4,7 +4,7 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
   outputs =
-    { nixpkgs, ... }:
+    { self, nixpkgs, ... }:
     let
       inherit (nixpkgs) lib;
       # nixpkgs-unstable no longer supports x86_64-darwin (Intel Macs).
@@ -543,6 +543,15 @@
           default = skate3;
         }
       );
+
+      gt.ci = _: {
+        caches = {
+          skate3.path = self.packages.x86_64-linux.skate3;
+          engine.path = self.packages.x86_64-linux.engine;
+          assets.path = self.packages.x86_64-linux.skate3.assets;
+          iso.path = self.packages.x86_64-linux.skate3.iso;
+        };
+      };
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
     };
