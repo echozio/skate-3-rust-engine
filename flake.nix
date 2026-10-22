@@ -544,7 +544,7 @@
         }
       );
 
-      gt.ci = _: {
+      ci = _: {
         caches = {
           skate3.path = self.packages.x86_64-linux.skate3;
           engine.path = self.packages.x86_64-linux.engine;
